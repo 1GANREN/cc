@@ -19,8 +19,9 @@ local w, h = monitor.getSize()
 local bgColor = colors.black
 local textColor = colors.white
 local headerColor = colors.blue
-local buttonColor = colors.green
+returnButtonColor = colors.red
 local highlightColor = colors.cyan
+paginationColor = colors.gray
 
 -- Initialization
 monitor.setTextScale(0.5)
@@ -74,6 +75,17 @@ end
 
 -- Find item
 local function searchItems(query)
+    if query == "" then
+        local results = {}
+        for _, item in pairs(itemsDB) do
+            table.insert(results, item)
+        end
+        table.sort(results, function(a, b) 
+            return a.displayName < b.displayName 
+        end)
+        return results
+    end
+    
     local results = {}
     query = query:lower()
     for _, item in pairs(itemsDB) do
@@ -99,13 +111,28 @@ local function retrieveItem(itemKey, amount)
         local chest = peripheral.wrap(loc.chest)
         local toExtract = math.min(remaining, loc.count)
         
-        chest.pushItems(OUTPUT_CHEST, loc.slot, toExtract)
-        loc.count = loc.count - toExtract
-        itemsDB[itemKey].total = itemsDB[itemKey].total - toExtract
-        remaining = remaining - toExtract
+        if chest.pushItems(OUTPUT_CHEST, loc.slot, toExtract) then
+            loc.count = loc.count - toExtract
+            itemsDB[itemKey].total = itemsDB[itemKey].total - toExtract
+            remaining = remaining - toExtract
+        end
     end
     
     return remaining == 0
+end
+
+-- Return items from output to system
+local function returnItemsToSystem()
+    local itemsMoved = 0
+    for slot = 1, output.size() do
+        local item = output.getItemDetail(slot)
+        if item then
+            local key = item.name.."@"..item.damage
+            local moved = output.pushItems(CHEST_SIDE, slot, item.count)
+            itemsMoved = itemsMoved + moved
+        end
+    end
+    return itemsMoved
 end
 
 -- User interface
@@ -134,29 +161,20 @@ local function drawFooter()
     monitor.setCursorPos(1, y)
     monitor.clearLine()
     
-    local help = "F1=Refresh  F2=Search  F3=Retrieve"
-    monitor.setCursorPos(math.floor((w - #help) / 2) + 1, y)
-    monitor.write(help)
-end
-
-local function drawSearchBar()
-    monitor.setBackgroundColor(bgColor)
-    monitor.setTextColor(textColor)
-    monitor.setCursorPos(1, 2)
-    monitor.clearLine()
+    -- Pagination controls
+    local pagination = "< Page "..currentPage.." >"
+    monitor.setCursorPos(math.floor((w - #pagination) / 2) + 1, y)
+    monitor.write(pagination)
     
-    monitor.write("Search: ")
-    local inputPos = 9
-    monitor.setCursorPos(inputPos, 2)
-    monitor.write(searchQuery)
-    
-    if #searchQuery < w - inputPos then
-        monitor.write("_") -- Cursor
-    end
+    -- Return items button
+    local returnText = " [Return Items] "
+    monitor.setBackgroundColor(returnButtonColor)
+    monitor.setCursorPos(w - #returnText + 1, y)
+    monitor.write(returnText)
 end
 
 local function drawItemList()
-    local startY = 3
+    local startY = 2
     local endY = h - 1
     local itemsPerPage = endY - startY
     
@@ -199,51 +217,11 @@ local function drawItemList()
         monitor.write(text)
     end
     
-    -- Pagination
-    if totalPages > 1 then
-        monitor.setBackgroundColor(bgColor)
-        monitor.setTextColor(colors.lightGray)
-        local pageText = ("Page %d/%d"):format(currentPage, totalPages)
-        monitor.setCursorPos(w - #pageText + 1, endY)
-        monitor.write(pageText)
+    -- No items message
+    if #searchResults == 0 then
+        monitor.setCursorPos(math.floor(w/2)-7, math.floor(h/2))
+        monitor.write("No items found")
     end
-end
-
-local function drawItemDetails()
-    if not selectedItem then return end
-    
-    local details = {
-        "Name: "..selectedItem.displayName,
-        "ID: "..selectedItem.name,
-        "Total: "..selectedItem.total,
-        "",
-        "Press F3 to retrieve"
-    }
-    
-    -- Center window
-    local boxWidth = math.min(w - 4, 40)
-    local boxHeight = #details + 2
-    local startX = math.floor((w - boxWidth) / 2) + 1
-    local startY = math.floor((h - boxHeight) / 2) + 1
-    
-    -- Frame
-    monitor.setBackgroundColor(colors.gray)
-    for y = startY, startY + boxHeight - 1 do
-        monitor.setCursorPos(startX, y)
-        monitor.write((" "):rep(boxWidth))
-    end
-    
-    -- Text
-    monitor.setTextColor(textColor)
-    for i, line in ipairs(details) do
-        monitor.setCursorPos(startX + 1, startY + i)
-        monitor.write(line)
-    end
-    
-    -- Close button
-    monitor.setBackgroundColor(colors.red)
-    monitor.setCursorPos(startX + boxWidth - 1, startY)
-    monitor.write("X")
 end
 
 local function redrawUI()
@@ -251,13 +229,8 @@ local function redrawUI()
     monitor.clear()
     
     drawHeader()
-    drawSearchBar()
     drawItemList()
     drawFooter()
-    
-    if selectedItem then
-        drawItemDetails()
-    end
 end
 
 -- Input handling
@@ -267,68 +240,70 @@ local function handleInput()
         
         if event == "monitor_touch" and side == MONITOR_SIDE then
             -- Handle touch input
-            if y == 2 and x >= 9 then -- Search
-                selectedItem = nil
-                monitor.setCursorPos(9, 2)
-                monitor.blit(searchQuery, ("f"):rep(#searchQuery), ("0"):rep(#searchQuery))
+            if y == h then -- Footer area
+                -- Return items button
+                local returnText = " [Return Items] "
+                local returnX = w - #returnText + 1
+                if x >= returnX and x <= w then
+                    local itemsMoved = returnItemsToSystem()
+                    print("Returned "..itemsMoved.." items to system")
+                    redrawUI()
                 
-                local newQuery = read()
-                if newQuery then
-                    searchQuery = newQuery
-                    searchResults = searchItems(searchQuery)
-                    currentPage = 1
+                -- Pagination controls
+                else
+                    local pagination = "< Page "..currentPage.." >"
+                    local paginationX = math.floor((w - #pagination) / 2) + 1
+                    
+                    -- Left arrow
+                    if x >= paginationX and x < paginationX + 2 then
+                        currentPage = math.max(1, currentPage - 1)
+                        redrawUI()
+                    
+                    -- Right arrow
+                    elseif x > paginationX + #pagination - 3 and x <= paginationX + #pagination then
+                        currentPage = currentPage + 1
+                        redrawUI()
+                    end
                 end
+            
+            -- Item selection (y from 2 to h-1)
+            elseif y >= 2 and y <= h-1 then
+                local itemsPerPage = (h - 1) - 2
+                local idx = (y - 2) + ((currentPage - 1) * itemsPerPage)
                 
-            elseif y >= 3 and y <= h-1 and not selectedItem then -- Select item
-                local idx = (y - 3) + ((currentPage - 1) * (h - 4))
                 if searchResults[idx] then
-                    selectedItem = searchResults[idx]
+                    local item = searchResults[idx]
+                    if retrieveItem(item.name.."@"..item.damage, 1) then
+                        print("Retrieved 1 "..item.displayName)
+                        scanInventories()
+                        searchResults = searchItems(searchQuery)
+                        redrawUI()
+                    else
+                        print("Retrieval failed!")
+                    end
                 end
-                
-            elseif selectedItem then -- Close details
-                selectedItem = nil
             end
             
-            redrawUI()
+        elseif event == "char" then
+            -- Search from computer terminal
+            term.setCursorPos(1, 1)
+            term.clear()
+            term.write("Enter search query: ")
+            searchQuery = read()
             
+            if searchQuery then
+                searchResults = searchItems(searchQuery)
+                currentPage = 1
+                redrawUI()
+            end
+        
         elseif event == "key" then
-            -- Hotkeys
-            if side == 59 then -- F1
-                findChests()
-                scanInventories()
-                searchResults = searchItems(searchQuery)
+            -- Arrow key pagination
+            if side == 203 then -- Left arrow
+                currentPage = math.max(1, currentPage - 1)
                 redrawUI()
-                
-            elseif side == 60 then -- F2
-                term.redirect(monitor)
-                monitor.setCursorPos(9, 2)
-                monitor.blit(searchQuery, ("f"):rep(#searchQuery), ("0"):rep(#searchQuery))
-                
-                local newQuery = read()
-                if newQuery then
-                    searchQuery = newQuery
-                    searchResults = searchItems(searchQuery)
-                    currentPage = 1
-                end
-                term.restore()
-                redrawUI()
-                
-            elseif side == 61 and selectedItem then -- F3
-                term.redirect(monitor)
-                print("How much to retrieve?")
-                local amount = tonumber(read())
-                
-                if amount and amount > 0 then
-                    if retrieveItem(selectedItem.name.."@"..selectedItem.damage, amount) then
-                        print("Success!")
-                    else
-                        print("Retrieval error!")
-                    end
-                    sleep(1)
-                end
-                term.restore()
-                scanInventories()
-                searchResults = searchItems(searchQuery)
+            elseif side == 205 then -- Right arrow
+                currentPage = currentPage + 1
                 redrawUI()
             end
         end
@@ -349,5 +324,7 @@ scanInventories()
 searchResults = searchItems("")
 redrawUI()
 
-print("System ready!")
+print("System ready! Use arrow keys for pagination")
+print("Type anything to search items")
+print("Tap items on monitor to retrieve")
 handleInput()
