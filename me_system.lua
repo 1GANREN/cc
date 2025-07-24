@@ -1,8 +1,8 @@
 -- ME-System для Computercraft Tweaked
--- Исправленная версия для текущей установки Basalt
+-- Версия с совместимым вводом данных для всех версий Basalt
 
 local basalt = require("basalt")
-local chestNames = {} -- Названия сундуков для поиска
+local chestNames = {"minecraft:chest"} -- Названия сундуков по умолчанию
 
 -- Загрузка конфигурации
 local function loadConfig()
@@ -12,7 +12,6 @@ local function loadConfig()
         file.close()
         chestNames = data.chestNames or {"minecraft:chest"}
     else
-        chestNames = {"minecraft:chest"} -- Сундуки по умолчанию
         saveConfig()
     end
 end
@@ -49,45 +48,65 @@ end
 
 -- Создание GUI
 local mainFrame = basalt.createFrame()
-local chestFrame = mainFrame:addFrame():setPosition(1, 3):setSize(30, 15)
-local logFrame = mainFrame:addFrame():setPosition(31, 3):setSize(20, 15)
+local chestFrame = mainFrame:addFrame():setPosition(1, 4):setSize(30, 15)
+local logFrame = mainFrame:addFrame():setPosition(31, 4):setSize(20, 15)
 
--- Панель управления
+-- Панель управления (совместимая версия)
 local controlFrame = mainFrame:addFrame()
     :setPosition(1, 1)
-    :setSize(50, 2)
+    :setSize(50, 3)
     :setBackground(colors.gray)
 
+-- Метка для ввода
 controlFrame:addLabel()
-    :setText("ME System")
+    :setText("Названия сундуков:")
     :setPosition(2, 1)
     :setForeground(colors.white)
 
+-- Текстовое поле с использованием базовых функций
+local inputText = table.concat(chestNames, ",")
+local input = controlFrame:addInput()
+    :setPosition(2, 2)
+    :setSize(40, 1)
+    :setBackground(colors.white)
+    :setForeground(colors.black)
+
+-- Установка начального значения через свойство text
+input.text = inputText
+
+-- Кнопка сканирования
 controlFrame:addButton()
-    :setText("Scan")
-    :setPosition(20, 1)
-    :setSize(6, 1)
+    :setText("Сканировать")
+    :setPosition(43, 2)
+    :setSize(8, 1)
     :onClick(function()
-        updateChestList()
+        local value = input.text or ""
+        if value ~= "" then
+            chestNames = {}
+            for name in value:gmatch("[^,]+") do
+                table.insert(chestNames, name:trim())
+            end
+            saveConfig()
+            updateChestList()
+        end
     end)
 
--- Поле для ввода названий сундуков (исправлено)
-local input = controlFrame:addInput()
-    :setPosition(30, 1)
-    :setSize(15, 1)
-    :setValue(table.concat(chestNames, ",")) -- Используем setValue вместо setDefaultText
-
-input:onEnter(function(self)
-    local value = self:getValue()
-    if value ~= "" then
-        chestNames = {}
-        for name in value:gmatch("[^,]+") do
-            table.insert(chestNames, name:trim())
+-- Кнопка применения
+controlFrame:addButton()
+    :setText("Применить")
+    :setPosition(33, 2)
+    :setSize(8, 1)
+    :onClick(function()
+        local value = input.text or ""
+        if value ~= "" then
+            chestNames = {}
+            for name in value:gmatch("[^,]+") do
+                table.insert(chestNames, name:trim())
+            end
+            saveConfig()
+            basalt.debug("Настройки сохранены: "..table.concat(chestNames, ", "))
         end
-        saveConfig()
-        updateChestList()
-    end
-end)
+    end)
 
 -- Отображение сундуков
 local function updateChestList()
@@ -96,16 +115,15 @@ local function updateChestList()
     
     local y = 1
     for _, chest in ipairs(chests) do
-        local btn = chestFrame:addButton()
+        chestFrame:addButton()
             :setPosition(2, y)
             :setSize(26, 3)
             :setText(chest.name)
             :onClick(function()
                 logFrame:removeChildren()
-                logFrame:addLabel():setText("Selected: "..chest.name):setPosition(1, 1)
+                logFrame:addLabel():setText("Выбрано: "..chest.name):setPosition(1, 1)
                 
-                -- Дополнительный функционал при клике
-                -- Например: открытие инвентаря сундука
+                -- Отображение содержимого сундука
                 local items = chest.peripheral.list()
                 local itemY = 2
                 for slot, item in pairs(items) do
@@ -120,7 +138,7 @@ local function updateChestList()
     
     -- Обновляем статус в логе
     logFrame:removeChildren()
-    logFrame:addLabel():setText("Found: "..#chests.." chests"):setPosition(1, 1)
+    logFrame:addLabel():setText("Найдено: "..#chests.." сундуков"):setPosition(1, 1)
 end
 
 -- Инициализация системы
