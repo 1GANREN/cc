@@ -1,10 +1,21 @@
 -- ME-System для Computercraft Tweaked
--- Исправленная версия с правильным порядком объявления функций
+-- Версия с улучшенной обработкой конфигурации
 
 local basalt = require("basalt")
 local chestNames = {"minecraft:chest"} -- Названия сундуков по умолчанию
 
--- Сначала объявляем saveConfig()
+-- Функция безопасного чтения файла
+local function safeReadFile(path)
+    if fs.exists(path) then
+        local file = fs.open(path, "r")
+        local content = file.readAll()
+        file.close()
+        return content
+    end
+    return nil
+end
+
+-- Сохранение конфигурации
 local function saveConfig()
     local data = {chestNames = chestNames}
     local file = fs.open("me_config.cfg", "w")
@@ -12,19 +23,22 @@ local function saveConfig()
     file.close()
 end
 
--- Затем объявляем loadConfig()
+-- Загрузка конфигурации с защитой от ошибок
 local function loadConfig()
-    if fs.exists("me_config.cfg") then
-        local file = fs.open("me_config.cfg", "r")
-        local data = textutils.unserialize(file.readAll() or "{}")
-        file.close()
-        chestNames = data.chestNames or {"minecraft:chest"}
-    else
-        saveConfig()  -- Теперь эта функция объявлена выше
+    local content = safeReadFile("me_config.cfg")
+    if content then
+        local success, data = pcall(textutils.unserialize, content)
+        if success and type(data) == "table" and data.chestNames then
+            chestNames = data.chestNames
+            return
+        else
+            print("Ошибка конфига. Использую настройки по умолчанию")
+        end
     end
+    saveConfig() -- Создаём новый конфиг
 end
 
--- Остальной код без изменений
+-- Автообнаружение сундуков
 local function findChests()
     local found = {}
     local peripherals = peripheral.getNames()
@@ -103,7 +117,7 @@ controlFrame:addButton()
         end
     end)
 
--- Объявляем updateChestList после findChests
+-- Функция обновления списка сундуков
 local function updateChestList()
     chestFrame:removeChildren()
     local chests = findChests()
@@ -118,13 +132,20 @@ local function updateChestList()
                 logFrame:removeChildren()
                 logFrame:addLabel():setText("Выбрано: "..chest.name):setPosition(1, 1)
                 
-                local items = chest.peripheral.list()
-                local itemY = 2
-                for slot, item in pairs(items) do
-                    if item then
-                        logFrame:addLabel():setText(item.name.." x"..item.count):setPosition(1, itemY)
-                        itemY = itemY + 1
+                local success, items = pcall(function()
+                    return chest.peripheral.list()
+                end)
+                
+                if success then
+                    local itemY = 2
+                    for slot, item in pairs(items) do
+                        if item then
+                            logFrame:addLabel():setText(item.name.." x"..item.count):setPosition(1, itemY)
+                            itemY = itemY + 1
+                        end
                     end
+                else
+                    logFrame:addLabel():setText("Ошибка доступа"):setPosition(1, 2)
                 end
             end)
         y = y + 4
@@ -135,7 +156,7 @@ local function updateChestList()
 end
 
 -- Инициализация системы
-loadConfig()  -- Теперь все функции объявлены выше
+loadConfig()
 updateChestList()
 
 -- Запуск GUI
