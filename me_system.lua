@@ -1,8 +1,14 @@
 -- ME-System для Computercraft Tweaked
--- Версия с улучшенной обработкой конфигурации
+-- Версия с совместимым управлением GUI для всех версий Basalt
 
 local basalt = require("basalt")
 local chestNames = {"minecraft:chest"} -- Названия сундуков по умолчанию
+
+-- Объявляем таблицы для хранения элементов GUI
+local guiElements = {
+    chestButtons = {},
+    logLabels = {}
+}
 
 -- Функция безопасного чтения файла
 local function safeReadFile(path)
@@ -117,20 +123,42 @@ controlFrame:addButton()
         end
     end)
 
+-- Функция очистки элементов GUI
+local function clearGUI()
+    -- Удаляем кнопки сундуков
+    for _, button in ipairs(guiElements.chestButtons) do
+        button:remove()
+    end
+    guiElements.chestButtons = {}
+    
+    -- Удаляем лейблы лога
+    for _, label in ipairs(guiElements.logLabels) do
+        label:remove()
+    end
+    guiElements.logLabels = {}
+end
+
 -- Функция обновления списка сундуков
 local function updateChestList()
-    chestFrame:removeChildren()
+    clearGUI()  -- Очищаем предыдущие элементы
+    
     local chests = findChests()
+    
+    -- Добавляем информацию о количестве сундуков
+    local statusLabel = logFrame:addLabel():setText("Найдено: "..#chests.." сундуков")
+    table.insert(guiElements.logLabels, statusLabel)
     
     local y = 1
     for _, chest in ipairs(chests) do
-        chestFrame:addButton()
+        local button = chestFrame:addButton()
             :setPosition(2, y)
             :setSize(26, 3)
             :setText(chest.name)
             :onClick(function()
-                logFrame:removeChildren()
-                logFrame:addLabel():setText("Выбрано: "..chest.name):setPosition(1, 1)
+                clearGUI()  -- Очищаем предыдущие элементы
+                
+                local selectedLabel = logFrame:addLabel():setText("Выбрано: "..chest.name)
+                table.insert(guiElements.logLabels, selectedLabel)
                 
                 local success, items = pcall(function()
                     return chest.peripheral.list()
@@ -140,19 +168,22 @@ local function updateChestList()
                     local itemY = 2
                     for slot, item in pairs(items) do
                         if item then
-                            logFrame:addLabel():setText(item.name.." x"..item.count):setPosition(1, itemY)
+                            local itemLabel = logFrame:addLabel():setText(item.name.." x"..item.count)
+                            itemLabel:setPosition(1, itemY)
+                            table.insert(guiElements.logLabels, itemLabel)
                             itemY = itemY + 1
                         end
                     end
                 else
-                    logFrame:addLabel():setText("Ошибка доступа"):setPosition(1, 2)
+                    local errorLabel = logFrame:addLabel():setText("Ошибка доступа")
+                    errorLabel:setPosition(1, 2)
+                    table.insert(guiElements.logLabels, errorLabel)
                 end
             end)
+        
+        table.insert(guiElements.chestButtons, button)
         y = y + 4
     end
-    
-    logFrame:removeChildren()
-    logFrame:addLabel():setText("Найдено: "..#chests.." сундуков"):setPosition(1, 1)
 end
 
 -- Инициализация системы
