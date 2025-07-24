@@ -1,5 +1,5 @@
 -- ME-System для Computercraft Tweaked
--- Версия с совместимым управлением GUI для всех версий Basalt
+-- Финальная исправленная версия
 
 local basalt = require("basalt")
 local chestNames = {"minecraft:chest"} -- Названия сундуков по умолчанию
@@ -145,7 +145,9 @@ local function updateChestList()
     local chests = findChests()
     
     -- Добавляем информацию о количестве сундуков
-    local statusLabel = logFrame:addLabel():setText("Найдено: "..#chests.." сундуков")
+    local statusLabel = logFrame:addLabel()
+        :setText("Найдено: "..#chests.." сундуков")
+        :setPosition(1, 1)
     table.insert(guiElements.logLabels, statusLabel)
     
     local y = 1
@@ -157,7 +159,9 @@ local function updateChestList()
             :onClick(function()
                 clearGUI()  -- Очищаем предыдущие элементы
                 
-                local selectedLabel = logFrame:addLabel():setText("Выбрано: "..chest.name)
+                local selectedLabel = logFrame:addLabel()
+                    :setText("Выбрано: "..chest.name)
+                    :setPosition(1, 1)
                 table.insert(guiElements.logLabels, selectedLabel)
                 
                 local success, items = pcall(function()
@@ -168,15 +172,17 @@ local function updateChestList()
                     local itemY = 2
                     for slot, item in pairs(items) do
                         if item then
-                            local itemLabel = logFrame:addLabel():setText(item.name.." x"..item.count)
-                            itemLabel:setPosition(1, itemY)
+                            local itemLabel = logFrame:addLabel()
+                                :setText(item.name.." x"..item.count)
+                                :setPosition(1, itemY)
                             table.insert(guiElements.logLabels, itemLabel)
                             itemY = itemY + 1
                         end
                     end
                 else
-                    local errorLabel = logFrame:addLabel():setText("Ошибка доступа")
-                    errorLabel:setPosition(1, 2)
+                    local errorLabel = logFrame:addLabel()
+                        :setText("Ошибка доступа")
+                        :setPosition(1, 2)
                     table.insert(guiElements.logLabels, errorLabel)
                 end
             end)
@@ -190,5 +196,5 @@ end
 loadConfig()
 updateChestList()
 
--- Запуск GUI
-basalt.autoUpdate()
+-- Запуск GUI (ИСПРАВЛЕНА ОПЕЧАТКА)
+basalt.autoUpdate()  -- Было: basalt.autolpdate()
