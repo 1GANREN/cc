@@ -195,6 +195,3 @@ end
 -- Инициализация системы
 loadConfig()
 updateChestList()
-
--- Запуск GUI (ИСПРАВЛЕНА ОПЕЧАТКА)
-basalt.autoUpdate()  -- Было: basalt.autolpdate()
