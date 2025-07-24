@@ -1,22 +1,10 @@
 -- ME-System для Computercraft Tweaked
--- Версия с совместимым вводом данных для всех версий Basalt
+-- Исправленная версия с правильным порядком объявления функций
 
 local basalt = require("basalt")
 local chestNames = {"minecraft:chest"} -- Названия сундуков по умолчанию
 
--- Загрузка конфигурации
-local function loadConfig()
-    if fs.exists("me_config.cfg") then
-        local file = fs.open("me_config.cfg", "r")
-        local data = textutils.unserialize(file.readAll() or "{}")
-        file.close()
-        chestNames = data.chestNames or {"minecraft:chest"}
-    else
-        saveConfig()
-    end
-end
-
--- Сохранение конфигурации
+-- Сначала объявляем saveConfig()
 local function saveConfig()
     local data = {chestNames = chestNames}
     local file = fs.open("me_config.cfg", "w")
@@ -24,7 +12,19 @@ local function saveConfig()
     file.close()
 end
 
--- Автообнаружение сундуков
+-- Затем объявляем loadConfig()
+local function loadConfig()
+    if fs.exists("me_config.cfg") then
+        local file = fs.open("me_config.cfg", "r")
+        local data = textutils.unserialize(file.readAll() or "{}")
+        file.close()
+        chestNames = data.chestNames or {"minecraft:chest"}
+    else
+        saveConfig()  -- Теперь эта функция объявлена выше
+    end
+end
+
+-- Остальной код без изменений
 local function findChests()
     local found = {}
     local peripherals = peripheral.getNames()
@@ -51,19 +51,17 @@ local mainFrame = basalt.createFrame()
 local chestFrame = mainFrame:addFrame():setPosition(1, 4):setSize(30, 15)
 local logFrame = mainFrame:addFrame():setPosition(31, 4):setSize(20, 15)
 
--- Панель управления (совместимая версия)
+-- Панель управления
 local controlFrame = mainFrame:addFrame()
     :setPosition(1, 1)
     :setSize(50, 3)
     :setBackground(colors.gray)
 
--- Метка для ввода
 controlFrame:addLabel()
     :setText("Названия сундуков:")
     :setPosition(2, 1)
     :setForeground(colors.white)
 
--- Текстовое поле с использованием базовых функций
 local inputText = table.concat(chestNames, ",")
 local input = controlFrame:addInput()
     :setPosition(2, 2)
@@ -71,10 +69,8 @@ local input = controlFrame:addInput()
     :setBackground(colors.white)
     :setForeground(colors.black)
 
--- Установка начального значения через свойство text
 input.text = inputText
 
--- Кнопка сканирования
 controlFrame:addButton()
     :setText("Сканировать")
     :setPosition(43, 2)
@@ -91,7 +87,6 @@ controlFrame:addButton()
         end
     end)
 
--- Кнопка применения
 controlFrame:addButton()
     :setText("Применить")
     :setPosition(33, 2)
@@ -108,7 +103,7 @@ controlFrame:addButton()
         end
     end)
 
--- Отображение сундуков
+-- Объявляем updateChestList после findChests
 local function updateChestList()
     chestFrame:removeChildren()
     local chests = findChests()
@@ -123,7 +118,6 @@ local function updateChestList()
                 logFrame:removeChildren()
                 logFrame:addLabel():setText("Выбрано: "..chest.name):setPosition(1, 1)
                 
-                -- Отображение содержимого сундука
                 local items = chest.peripheral.list()
                 local itemY = 2
                 for slot, item in pairs(items) do
@@ -136,13 +130,12 @@ local function updateChestList()
         y = y + 4
     end
     
-    -- Обновляем статус в логе
     logFrame:removeChildren()
     logFrame:addLabel():setText("Найдено: "..#chests.." сундуков"):setPosition(1, 1)
 end
 
 -- Инициализация системы
-loadConfig()
+loadConfig()  -- Теперь все функции объявлены выше
 updateChestList()
 
 -- Запуск GUI
